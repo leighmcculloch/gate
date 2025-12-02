@@ -20,6 +20,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		Use:   "gate",
 		Short: "Capture and restore git repository state",
 		Long:  "A tool to capture the state of git repositories and worktrees, and restore them on another system.",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
 	}
 
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
