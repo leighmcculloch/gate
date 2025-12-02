@@ -60,9 +60,7 @@ func TestCaptureSingleRepo(t *testing.T) {
     {
       "path": ".",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }
@@ -98,9 +96,7 @@ func TestCaptureSingleRepoWithRemote(t *testing.T) {
       "path": ".",
       "remote_url": "%s",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }
@@ -130,9 +126,7 @@ func TestCaptureUncommittedChangesWarning(t *testing.T) {
     {
       "path": ".",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }
@@ -174,16 +168,12 @@ func TestCaptureMultipleRepos(t *testing.T) {
     {
       "path": "repo1",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     },
     {
       "path": "repo2",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }
@@ -217,9 +207,7 @@ func TestCaptureWorktree(t *testing.T) {
     {
       "path": "main-repo",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     },
     {
       "path": "worktree-branch",
@@ -407,16 +395,12 @@ func TestCaptureNestedRepos(t *testing.T) {
     {
       "path": "outer",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     },
     {
       "path": "outer/inner",
       "branch": "main",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }
@@ -445,9 +429,7 @@ func TestCaptureDetachedHead(t *testing.T) {
     {
       "path": ".",
       "branch": "HEAD",
-      "commit": "%s",
-      "is_worktree": false,
-      "main_checkout_path": null
+      "commit": "%s"
     }
   ]
 }

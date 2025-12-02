@@ -6,8 +6,8 @@ type Repository struct {
 	RemoteURL        string  `json:"remote_url,omitempty"`
 	Branch           string  `json:"branch"`
 	Commit           string  `json:"commit"`
-	IsWorktree       bool    `json:"is_worktree"`
-	MainCheckoutPath *string `json:"main_checkout_path"`
+	IsWorktree       bool    `json:"is_worktree,omitempty"`
+	MainCheckoutPath *string `json:"main_checkout_path,omitempty"`
 }
 
 // State represents the complete state of all repositories
