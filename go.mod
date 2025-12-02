@@ -1,4 +1,4 @@
-module gate
+module github.com/leighmcculloch/gate
 
 go 1.25.4
 
