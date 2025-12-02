@@ -34,6 +34,15 @@ Read JSON from stdin and clone repositories / set up worktrees:
 gate apply < state.json
 ```
 
+### Verbose Mode
+
+Add `-v` or `--verbose` to see detailed progress output:
+
+```bash
+gate capture -v > state.json
+gate apply -v < state.json
+```
+
 ## Examples
 
 ### Backup repository state

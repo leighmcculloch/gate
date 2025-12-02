@@ -39,6 +39,28 @@ func TestCaptureNoRepos(t *testing.T) {
 `, stdout)
 }
 
+func TestCaptureVerbose(t *testing.T) {
+	setupGit(t)
+
+	dir := testcli.MkdirTemp(t)
+	testcli.Chdir(t, dir)
+	testcli.Exec(t, "git init")
+	testcli.WriteFile(t, "file1", []byte("content"))
+	testcli.Exec(t, "git add .")
+	testcli.Exec(t, "git commit -m 'Initial commit'")
+
+	args := []string{"gate", "capture", "-v"}
+	exitCode, _, stderr := testcli.Main(t, args, nil, run)
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, "starting capture from")
+	assert.Contains(t, stderr, "searching parent directories")
+	assert.Contains(t, stderr, "searching current directory and subdirectories")
+	assert.Contains(t, stderr, "found repository: .")
+	assert.Contains(t, stderr, "detected as main checkout")
+	assert.Contains(t, stderr, "found 1 repositories")
+	assert.Contains(t, stderr, "writing JSON output")
+}
+
 func TestCaptureSingleRepo(t *testing.T) {
 	setupGit(t)
 
