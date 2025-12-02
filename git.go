@@ -22,40 +22,54 @@ func isGitRepo(path string) bool {
 // isWorktree checks if a directory is a worktree (not the main checkout)
 // Returns true if worktree, and the path to the main checkout relative to the worktree
 func isWorktree(path string) (bool, string) {
-	// Get the git common dir (shared across worktrees)
-	commonDir, err := git(path, "rev-parse", "--git-common-dir")
+	// Get the worktree list in porcelain format
+	output, err := git(path, "worktree", "list", "--porcelain")
 	if err != nil {
 		return false, ""
 	}
 
-	// Get the git dir for this specific worktree
-	gitDir, err := git(path, "rev-parse", "--git-dir")
-	if err != nil {
-		return false, ""
-	}
-
-	// If they're the same (both ".git"), it's the main checkout
-	// If git-dir is inside git-common-dir/worktrees/, it's a worktree
-	if commonDir == gitDir || commonDir == ".git" {
-		return false, ""
-	}
-
-	// It's a worktree - find the main checkout path
-	// The common dir points to the .git folder of the main checkout
-	absCommonDir := commonDir
-	if !filepath.IsAbs(commonDir) {
-		absCommonDir = filepath.Join(path, commonDir)
-	}
-	absCommonDir, _ = filepath.Abs(absCommonDir)
-
-	// Main checkout is the parent of the .git folder
-	mainCheckout := filepath.Dir(absCommonDir)
-
-	// Make it relative to the worktree
+	// Parse the worktree list to find the main worktree and current path
 	absPath, _ := filepath.Abs(path)
-	relPath, err := filepath.Rel(absPath, mainCheckout)
+
+	var mainWorktreePath string
+	var currentIsWorktree bool
+
+	lines := strings.Split(output, "\n")
+	isFirstWorktree := true
+	var currentWorktreePath string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "worktree ") {
+			currentWorktreePath = strings.TrimPrefix(line, "worktree ")
+			if isFirstWorktree {
+				// First worktree entry is always the main checkout
+				mainWorktreePath = currentWorktreePath
+				isFirstWorktree = false
+			}
+		}
+		// Empty line marks end of a worktree entry
+		if line == "" && currentWorktreePath != "" {
+			// Check if this worktree matches our path
+			if currentWorktreePath == absPath && currentWorktreePath != mainWorktreePath {
+				currentIsWorktree = true
+			}
+			currentWorktreePath = ""
+		}
+	}
+
+	// Handle case where output doesn't end with empty line
+	if currentWorktreePath != "" && currentWorktreePath == absPath && currentWorktreePath != mainWorktreePath {
+		currentIsWorktree = true
+	}
+
+	if !currentIsWorktree {
+		return false, ""
+	}
+
+	// Make main checkout path relative to the worktree
+	relPath, err := filepath.Rel(absPath, mainWorktreePath)
 	if err != nil {
-		return true, mainCheckout
+		return true, mainWorktreePath
 	}
 
 	return true, relPath
