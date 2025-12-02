@@ -1,14 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"4d63.com/testcli"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func setupGit(t *testing.T) {
@@ -34,7 +33,10 @@ func TestCaptureNoRepos(t *testing.T) {
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-	assert.Equal(t, "{\n  \"repositories\": []\n}\n", stdout)
+	assert.Equal(t, `{
+  "repositories": []
+}
+`, stdout)
 }
 
 func TestCaptureSingleRepo(t *testing.T) {
@@ -47,21 +49,24 @@ func TestCaptureSingleRepo(t *testing.T) {
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
 
+	commit := gitExec(t, "git rev-parse HEAD")
+
 	args := []string{"gate", "capture"}
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	require.Len(t, state.Repositories, 1)
-	assert.Equal(t, ".", state.Repositories[0].Path)
-	assert.Equal(t, "main", state.Repositories[0].Branch)
-	assert.Len(t, state.Repositories[0].Commit, 40) // SHA length
-	assert.False(t, state.Repositories[0].IsWorktree)
-	assert.Nil(t, state.Repositories[0].MainCheckoutPath)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": ".",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, commit), stdout)
 }
 
 func TestCaptureSingleRepoWithRemote(t *testing.T) {
@@ -81,18 +86,25 @@ func TestCaptureSingleRepoWithRemote(t *testing.T) {
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
 
+	commit := gitExec(t, "git rev-parse HEAD")
+
 	args := []string{"gate", "capture"}
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	require.Len(t, state.Repositories, 1)
-	assert.Equal(t, ".", state.Repositories[0].Path)
-	assert.Equal(t, remote, state.Repositories[0].RemoteURL)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": ".",
+      "remote_url": "%s",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, remote, commit), stdout)
 }
 
 func TestCaptureUncommittedChangesWarning(t *testing.T) {
@@ -107,15 +119,24 @@ func TestCaptureUncommittedChangesWarning(t *testing.T) {
 	// Create uncommitted change
 	testcli.WriteFile(t, "file2", []byte("uncommitted"))
 
+	commit := gitExec(t, "git rev-parse HEAD")
+
 	args := []string{"gate", "capture"}
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, "warning: . has uncommitted changes")
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-	require.Len(t, state.Repositories, 1)
+	assert.Equal(t, "warning: . has uncommitted changes\n", stderr)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": ".",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, commit), stdout)
 }
 
 func TestCaptureMultipleRepos(t *testing.T) {
@@ -131,6 +152,7 @@ func TestCaptureMultipleRepos(t *testing.T) {
 	testcli.WriteFile(t, "file1", []byte("content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
+	commit1 := gitExec(t, "git rev-parse HEAD")
 	testcli.Chdir(t, "..")
 
 	// Create repo2
@@ -140,21 +162,32 @@ func TestCaptureMultipleRepos(t *testing.T) {
 	testcli.WriteFile(t, "file1", []byte("content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
+	commit2 := gitExec(t, "git rev-parse HEAD")
 	testcli.Chdir(t, "..")
 
 	args := []string{"gate", "capture"}
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	require.Len(t, state.Repositories, 2)
-	paths := []string{state.Repositories[0].Path, state.Repositories[1].Path}
-	assert.Contains(t, paths, "repo1")
-	assert.Contains(t, paths, "repo2")
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": "repo1",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    },
+    {
+      "path": "repo2",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, commit1, commit2), stdout)
 }
 
 func TestCaptureWorktree(t *testing.T) {
@@ -170,6 +203,7 @@ func TestCaptureWorktree(t *testing.T) {
 	testcli.WriteFile(t, "file1", []byte("content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
+	commit := gitExec(t, "git rev-parse HEAD")
 	// Add worktree with new branch
 	testcli.Exec(t, "git worktree add -b feature-branch ../worktree-branch")
 	testcli.Chdir(t, "..")
@@ -178,35 +212,25 @@ func TestCaptureWorktree(t *testing.T) {
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	require.Len(t, state.Repositories, 2)
-
-	// Find the main repo and worktree
-	var mainRepo, worktree *Repository
-	for i := range state.Repositories {
-		if state.Repositories[i].IsWorktree {
-			worktree = &state.Repositories[i]
-		} else {
-			mainRepo = &state.Repositories[i]
-		}
-	}
-
-	require.NotNil(t, mainRepo)
-	require.NotNil(t, worktree)
-
-	assert.Equal(t, "main-repo", mainRepo.Path)
-	assert.Equal(t, "main", mainRepo.Branch)
-	assert.False(t, mainRepo.IsWorktree)
-
-	assert.Equal(t, "worktree-branch", worktree.Path)
-	assert.Equal(t, "feature-branch", worktree.Branch)
-	assert.True(t, worktree.IsWorktree)
-	require.NotNil(t, worktree.MainCheckoutPath)
-	assert.Equal(t, "../main-repo", *worktree.MainCheckoutPath)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": "main-repo",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    },
+    {
+      "path": "worktree-branch",
+      "branch": "feature-branch",
+      "commit": "%s",
+      "is_worktree": true,
+      "main_checkout_path": "../main-repo"
+    }
+  ]
+}
+`, commit, commit), stdout)
 }
 
 func TestApplyCloneRepo(t *testing.T) {
@@ -235,23 +259,25 @@ func TestApplyCloneRepo(t *testing.T) {
 	testcli.Chdir(t, targetDir)
 
 	// Create JSON input
-	state := State{
-		Repositories: []Repository{
-			{
-				Path:       "cloned-repo",
-				RemoteURL:  remote,
-				Branch:     "main",
-				Commit:     commit,
-				IsWorktree: false,
-			},
-		},
-	}
-	jsonData, _ := json.Marshal(state)
+	jsonInput := fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": "cloned-repo",
+      "remote_url": "%s",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}`, remote, commit)
 
 	args := []string{"gate", "apply"}
-	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(string(jsonData)), run)
+	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(jsonInput), run)
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, "cloning cloned-repo")
+	assert.Equal(t, fmt.Sprintf(`cloning cloned-repo from %s
+  checked out main at %s
+`, remote, commit[:12]), stderr)
 
 	// Verify the repo was created
 	testcli.Chdir(t, "cloned-repo")
@@ -268,23 +294,23 @@ func TestApplySkipsExistingRepo(t *testing.T) {
 	// Create an existing directory
 	testcli.Mkdir(t, "existing-repo")
 
-	state := State{
-		Repositories: []Repository{
-			{
-				Path:       "existing-repo",
-				RemoteURL:  "https://example.com/repo.git",
-				Branch:     "main",
-				Commit:     "abc123",
-				IsWorktree: false,
-			},
-		},
-	}
-	jsonData, _ := json.Marshal(state)
+	jsonInput := `{
+  "repositories": [
+    {
+      "path": "existing-repo",
+      "remote_url": "https://example.com/repo.git",
+      "branch": "main",
+      "commit": "abc123abc123abc123abc123abc123abc123abc1",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}`
 
 	args := []string{"gate", "apply"}
-	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(string(jsonData)), run)
+	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(jsonInput), run)
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, "warning: existing-repo already exists, skipping")
+	assert.Equal(t, "warning: existing-repo already exists, skipping\n", stderr)
 }
 
 func TestApplyWorktree(t *testing.T) {
@@ -311,32 +337,34 @@ func TestApplyWorktree(t *testing.T) {
 	testcli.Chdir(t, targetDir)
 
 	// Create JSON input with main repo and worktree
-	mainPath := "../main-repo"
-	state := State{
-		Repositories: []Repository{
-			{
-				Path:       "main-repo",
-				RemoteURL:  remote,
-				Branch:     "main",
-				Commit:     commit,
-				IsWorktree: false,
-			},
-			{
-				Path:             "worktree-dir",
-				Branch:           "feature",
-				Commit:           commit,
-				IsWorktree:       true,
-				MainCheckoutPath: &mainPath,
-			},
-		},
-	}
-	jsonData, _ := json.Marshal(state)
+	jsonInput := fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": "main-repo",
+      "remote_url": "%s",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    },
+    {
+      "path": "worktree-dir",
+      "branch": "feature",
+      "commit": "%s",
+      "is_worktree": true,
+      "main_checkout_path": "../main-repo"
+    }
+  ]
+}`, remote, commit, commit)
 
 	args := []string{"gate", "apply"}
-	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(string(jsonData)), run)
+	exitCode, _, stderr := testcli.Main(t, args, strings.NewReader(jsonInput), run)
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, "cloning main-repo")
-	assert.Contains(t, stderr, "adding worktree worktree-dir")
+	assert.Equal(t, fmt.Sprintf(`cloning main-repo from %s
+  checked out main at %s
+adding worktree worktree-dir from main-repo
+  checked out feature at %s
+`, remote, commit[:12], commit[:12]), stderr)
 
 	// Verify worktree was created
 	testcli.Chdir(t, "worktree-dir")
@@ -357,6 +385,7 @@ func TestCaptureNestedRepos(t *testing.T) {
 	testcli.WriteFile(t, "file1", []byte("content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Outer commit'")
+	outerCommit := gitExec(t, "git rev-parse HEAD")
 
 	// Create nested inner repo
 	testcli.Mkdir(t, "inner")
@@ -365,23 +394,33 @@ func TestCaptureNestedRepos(t *testing.T) {
 	testcli.WriteFile(t, "file2", []byte("inner content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Inner commit'")
+	innerCommit := gitExec(t, "git rev-parse HEAD")
 	testcli.Chdir(t, "../..")
 
 	args := []string{"gate", "capture"}
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	// Outer repo has uncommitted changes (the inner directory)
-	assert.Contains(t, stderr, "warning: outer has uncommitted changes")
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	// Should find both repos
-	require.Len(t, state.Repositories, 2)
-	paths := []string{state.Repositories[0].Path, state.Repositories[1].Path}
-	assert.Contains(t, paths, "outer")
-	assert.Contains(t, paths, "outer/inner")
+	assert.Equal(t, "warning: outer has uncommitted changes\n", stderr)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": "outer",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    },
+    {
+      "path": "outer/inner",
+      "branch": "main",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, outerCommit, innerCommit), stdout)
 }
 
 func TestCaptureDetachedHead(t *testing.T) {
@@ -393,6 +432,7 @@ func TestCaptureDetachedHead(t *testing.T) {
 	testcli.WriteFile(t, "file1", []byte("content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Initial commit'")
+	commit := gitExec(t, "git rev-parse HEAD")
 	// Detach HEAD
 	testcli.Exec(t, "git checkout --detach HEAD")
 
@@ -400,11 +440,16 @@ func TestCaptureDetachedHead(t *testing.T) {
 	exitCode, stdout, stderr := testcli.Main(t, args, nil, run)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "", stderr)
-
-	var state State
-	err := json.Unmarshal([]byte(stdout), &state)
-	require.NoError(t, err)
-
-	require.Len(t, state.Repositories, 1)
-	assert.Equal(t, "HEAD", state.Repositories[0].Branch)
+	assert.Equal(t, fmt.Sprintf(`{
+  "repositories": [
+    {
+      "path": ".",
+      "branch": "HEAD",
+      "commit": "%s",
+      "is_worktree": false,
+      "main_checkout_path": null
+    }
+  ]
+}
+`, commit), stdout)
 }
