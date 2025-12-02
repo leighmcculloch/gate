@@ -125,8 +125,8 @@ func searchDownward(startPath string, repos map[string]*Repository, stderr io.Wr
 			}
 			addRepo(path, relPath, repos, stderr, verbose)
 
-			// Don't descend into git repos (they handle their own subdirs)
-			// But we do want to find nested repos, so continue
+			// Skip subdirectories of this repo
+			return filepath.SkipDir
 		}
 
 		return nil

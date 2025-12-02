@@ -382,7 +382,7 @@ adding worktree worktree-dir from main-repo
 	assert.Equal(t, "feature", branch)
 }
 
-func TestCaptureNestedRepos(t *testing.T) {
+func TestCaptureSkipsNestedRepos(t *testing.T) {
 	setupGit(t)
 
 	dir := testcli.MkdirTemp(t)
@@ -397,14 +397,13 @@ func TestCaptureNestedRepos(t *testing.T) {
 	testcli.Exec(t, "git commit -m 'Outer commit'")
 	outerCommit := gitExec(t, "git rev-parse HEAD")
 
-	// Create nested inner repo
+	// Create nested inner repo (should be skipped)
 	testcli.Mkdir(t, "inner")
 	testcli.Chdir(t, "inner")
 	testcli.Exec(t, "git init")
 	testcli.WriteFile(t, "file2", []byte("inner content"))
 	testcli.Exec(t, "git add .")
 	testcli.Exec(t, "git commit -m 'Inner commit'")
-	innerCommit := gitExec(t, "git rev-parse HEAD")
 	testcli.Chdir(t, "../..")
 
 	args := []string{"gate", "capture"}
@@ -412,21 +411,17 @@ func TestCaptureNestedRepos(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 	// Outer repo has uncommitted changes (the inner directory)
 	assert.Equal(t, "warning: outer has uncommitted changes\n", stderr)
+	// Only outer repo is captured, nested inner repo is skipped
 	assert.Equal(t, fmt.Sprintf(`{
   "repositories": [
     {
       "path": "outer",
       "branch": "main",
       "commit": "%s"
-    },
-    {
-      "path": "outer/inner",
-      "branch": "main",
-      "commit": "%s"
     }
   ]
 }
-`, outerCommit, innerCommit), stdout)
+`, outerCommit), stdout)
 }
 
 func TestCaptureDetachedHead(t *testing.T) {
